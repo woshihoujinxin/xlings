@@ -2,7 +2,7 @@
 export XLINGS_HOME="/home/xlings"
 
 if [ "$(uname)" = "Darwin" ]; then
-    export XLINGS_HOME="$HONE"
+    export XLINGS_HOME="$HOME"
 fi
 
 export XLINGS_DATA="$XLINGS_HOME/.xlings_data"

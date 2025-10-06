@@ -5,7 +5,7 @@ trap "echo 'Ctrl+C or killed...'; exit 1" INT TERM
 export XLINGS_HOME_DIR=/home/xlings
 
 if [ "$(uname)" == "Darwin" ]; then
-    export XLINGS_HOME_DIR=/Users/xlings
+    export XLINGS_HOME_DIR=$HOME
 fi
 
 export XLINGS_DIR=$XLINGS_HOME_DIR/.xlings # default use home's xlings

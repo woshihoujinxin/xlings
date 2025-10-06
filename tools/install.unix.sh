@@ -14,7 +14,7 @@ XLINGS_SYMLINK="/usr/bin/xlings"
 trap "echo 'Ctrl+C or killed...'; exit 1" INT TERM
 
 if [ "$(uname)" == "Darwin" ]; then
-    XLINGS_HOME="/Users/xlings"
+    XLINGS_HOME="$HOME"
     XLINGS_SYMLINK="/usr/local/bin/xlings"
     XMAKE_BIN_URL=https://gitee.com/sunrisepeak/xlings-pkg/raw/master/xmake-3.0.0-macosx-arm64
 fi
