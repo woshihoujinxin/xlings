@@ -1,7 +1,7 @@
 # Xlings
 
 if test (uname) = "Darwin"
-    set -x XLINGS_HOME "/Users/xlings"
+    set -x XLINGS_HOME "$HOME"
 else
     set -x XLINGS_HOME "/home/xlings"
 end
