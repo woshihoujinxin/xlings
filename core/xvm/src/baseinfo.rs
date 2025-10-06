@@ -86,14 +86,14 @@ pub mod platform {
         {
             let home = std::env::var("XLINGS_HOME")
                 .or_else(|_| std::env::var("HOME"))
-                .unwrap_or_else(|_| String::from("/Users/xlings"));
+                .unwrap_or_else(|_| String::from("~"));
             PathBuf::from(format!("{}/.xlings_data", home))
         }
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             let home = std::env::var("XLINGS_HOME")
                 .or_else(|_| std::env::var("HOME"))
-                .unwrap_or_else(|_| String::from("/home/xlings"));
+                .unwrap_or_else(|_| String::from("~"));
             PathBuf::from(format!("{}/.xlings_data", home))
         }
     }
@@ -111,14 +111,14 @@ pub mod platform {
         {
             let home = std::env::var("XLINGS_HOME")
                 .or_else(|_| std::env::var("HOME"))
-                .unwrap_or_else(|_| String::from("/Users/xlings"));
+                .unwrap_or_else(|_| String::from("~"));
             format!("{}/.xlings_data/xvm", home)
         }
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             let home = std::env::var("XLINGS_HOME")
                 .or_else(|_| std::env::var("HOME"))
-                .unwrap_or_else(|_| String::from("/home/xlings"));
+                .unwrap_or_else(|_| String::from("~"));
             format!("{}/.xlings_data/xvm", home)
         }
     }
