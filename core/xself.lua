@@ -50,11 +50,29 @@ function install()
         -- create bin dir
         local bindir = platform.get_config_info().bindir
         cprint("[xlings]: create bindir %s", bindir)
-        -- copy contents of bin into bindir, avoid nested bin/
-        os.cp(path.join(install_dir, "bin", "*"), bindir, {force = true})
-        -- safe guard: if a nested bin exists, flatten it
+        local srcbindir = path.join(install_dir, "bin")
+        -- 枚举复制：复制 srcbindir 下所有文件到 bindir
+        for _, f in ipairs(os.files(path.join(srcbindir, "*"))) do
+            os.cp(f, bindir, {force = true})
+        end
+        -- 如果存在子目录，递归复制其内容到 bindir
+        for _, d in ipairs(os.dirs(path.join(srcbindir, "*"))) do
+            for _, subf in ipairs(os.files(path.join(d, "**"))) do
+                os.cp(subf, bindir, {force = true})
+            end
+        end
+        -- 兜底：若 xlings 未复制到位，直接复制关键可执行
+        if not os.isfile(path.join(bindir, "xlings")) and os.isfile(path.join(srcbindir, "xlings")) then
+            os.cp(path.join(srcbindir, "xlings"), bindir, {force = true})
+        end
+        if not os.isfile(path.join(bindir, "xmake")) and os.isfile(path.join(srcbindir, "xmake")) then
+            os.cp(path.join(srcbindir, "xmake"), bindir, {force = true})
+        end
+        -- 扁平化安全处理：清理误产生的 bindir/bin
         if os.isdir(path.join(bindir, "bin")) then
-            os.cp(path.join(bindir, "bin", "*"), bindir, {force = true})
+            for _, nf in ipairs(os.files(path.join(bindir, "bin", "*"))) do
+                os.cp(nf, bindir, {force = true})
+            end
             os.tryrm(path.join(bindir, "bin"))
         end
 
