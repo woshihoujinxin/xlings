@@ -197,20 +197,20 @@ function add_env_path(value)
                 xlings_home = home
             end
             if xlings_home and xlings_home ~= "" then
-                -- if value equals a hardcoded '/Users/xlings/.xlings_data/bin', rewrite to current HOME
-                if value == "/Users/xlings/.xlings_data/bin" then
-                    value = path.join(xlings_home, ".xlings_data/bin")
-                end
-                -- also handle '/home/xlings/.xlings_data/bin' for linux hardcode
-                if value == "/home/xlings/.xlings_data/bin" then
-                    value = path.join(xlings_home, ".xlings_data/bin")
-                end
-                -- if value contains '$HOME', expand it
+                -- expand $HOME and ${HOME}
                 if value and value:find("$HOME", 1, true) then
                     value = value:gsub("%$HOME", xlings_home)
                 end
                 if value and value:find("${HOME}", 1, true) then
                     value = value:gsub("%${HOME}", xlings_home)
+                end
+                -- expand tilde
+                if value and value:match("^~") then
+                    value = value:gsub("^~", xlings_home)
+                end
+                -- rewrite any hardcoded absolute home path to current home
+                if value and (value:match("^/Users/.+/.xlings_data/bin") or value:match("^/home/.+/.xlings_data/bin")) then
+                    value = path.join(xlings_home, ".xlings_data/bin")
                 end
             end
         end
@@ -220,14 +220,24 @@ function add_env_path(value)
 end
 
 function append_bashrc(content)
-    local bashrc = os.getenv("HOME") .. "/.bashrc"
-    if not os.isfile(bashrc) then
-        common.xlings_create_file_and_write(bashrc, content)
+    local home = os.getenv("HOME")
+    local zshrc = home .. "/.zshrc"
+    local bashrc = home .. "/.bashrc"
+    local rc = bashrc
+    if is_host("macosx") then
+        -- prefer zsh on macOS; create ~/.zshrc if missing
+        rc = zshrc
+    end
+    if not os.isfile(rc) and rc ~= bashrc and os.isfile(bashrc) then
+        rc = bashrc
+    end
+    if not os.isfile(rc) then
+        common.xlings_create_file_and_write(rc, content)
     else
-        local bashrc_content = io.readfile(bashrc)
-        if string.find(bashrc_content, content, 1, true) == nil then
+        local rc_content = io.readfile(rc)
+        if string.find(rc_content, content, 1, true) == nil then
             content = "\n" .. content
-            common.xlings_file_append(bashrc, content)
+            common.xlings_file_append(rc, content)
         end
     end
 end
