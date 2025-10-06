@@ -189,7 +189,32 @@ function add_env_path(value)
     if is_host("windows") then
         common.xlings_exec("setx PATH \"" .. value .. ";%PATH%\"")
     else
-        local content = string.format("export PATH=%s:$PATH", value)
+        -- normalize value to current HOME if it is hardcoded
+        do
+            local xlings_home = os.getenv("XLINGS_HOME")
+            local home = os.getenv("HOME")
+            if not xlings_home or xlings_home == "" then
+                xlings_home = home
+            end
+            if xlings_home and xlings_home ~= "" then
+                -- if value equals a hardcoded '/Users/xlings/.xlings_data/bin', rewrite to current HOME
+                if value == "/Users/xlings/.xlings_data/bin" then
+                    value = path.join(xlings_home, ".xlings_data/bin")
+                end
+                -- also handle '/home/xlings/.xlings_data/bin' for linux hardcode
+                if value == "/home/xlings/.xlings_data/bin" then
+                    value = path.join(xlings_home, ".xlings_data/bin")
+                end
+                -- if value contains '$HOME', expand it
+                if value and value:find("$HOME", 1, true) then
+                    value = value:gsub("%$HOME", xlings_home)
+                end
+                if value and value:find("${HOME}", 1, true) then
+                    value = value:gsub("%${HOME}", xlings_home)
+                end
+            end
+        end
+        local content = string.format('export PATH="%s:$PATH"', value)
         append_bashrc(content)
     end
 end
