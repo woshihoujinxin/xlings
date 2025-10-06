@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 # 全局变量
 $QI_RUN_DIR = (Get-Location).Path
 $QI_INSTALL_DIR = '.xlings_software_install'
-$SOFTWARE_URL0 = 'https://vip.123pan.cn/1825134841/32180721'
+$SOFTWARE_URL0 = 'https://vip.123pan.cn/1825134841/oneshot/xlings-dev.zip'
 $SOFTWARE_URL1 = 'https://github.com/woshihoujinxin/xlings/archive/refs/heads/dev.zip'
 $SOFTWARE_URL2 = 'https://gitee.com/houjinxin/xlings/repository/archive/dev.zip?format=zip'
 $ZIP_FILE = 'software.zip'
