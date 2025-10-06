@@ -164,6 +164,8 @@ download_and_install() {
 
     # 下载软件包
     echo -e "${BLUE}正在下载 xlings...${RESET}"
+    echo -e "${BLUE}下载地址: ${RESET}$software_url"
+    echo -e "${BLUE}保存为:   ${RESET}$ZIP_FILE"
     if ! curl -L --progress-bar -o "$ZIP_FILE" "$software_url"; then
         error_exit "下载失败，请检查网络连接后重试"
     fi
@@ -175,11 +177,14 @@ download_and_install() {
 
     # 解压文件
     echo -e "${BLUE}正在解压文件...${RESET}"
+    echo -e "${BLUE}解压源:   ${RESET}$ZIP_FILE"
+    echo -e "${BLUE}目标目录: ${RESET}$QI_INSTALL_DIR"
     if ! unzip -q "$ZIP_FILE"; then
         error_exit "解压失败，文件可能已损坏"
     fi
 
     # 进入解压后的目录
+    echo -e "${BLUE}进入目录: ${RESET}$XLINGS_DIR"
     if ! cd "$XLINGS_DIR"; then
         error_exit "找不到解压后的目录 $XLINGS_DIR"
     fi
@@ -190,19 +195,21 @@ download_and_install() {
     fi
 
     # 在 macOS 下，修补远端 install.unix.sh 中的硬编码路径为 $HOME
-    if [ "$(uname)" = "Darwin" ]; then
-        # 将 XLINGS_HOME="/Users/xlings" 改为 XLINGS_HOME="$HOME"
-        sed -i '' 's#XLINGS_HOME="/Users/xlings"#XLINGS_HOME="$HOME"#g' "$INSTALL_SCRIPT" || true
-        # 同时确保任何硬编码 /Users/xlings 打印/路径也统一替换为 $HOME（尽量不影响其它内容）
-        sed -i '' 's#/Users/xlings#'"$HOME"'#g' "$INSTALL_SCRIPT" || true
-    fi
+    # 将远端脚本的硬编码赋值改为“仅在未设置时赋值”，并统一替换硬编码路径
+    # 覆盖 Linux 默认行：XLINGS_HOME="/home/xlings"
+    sed -i '' 's#XLINGS_HOME="/home/xlings"#[ -z "${XLINGS_HOME:-}" ] \&\& XLINGS_HOME="$HOME"#g' "$INSTALL_SCRIPT" || true
+    # 覆盖 macOS 分支行：XLINGS_HOME="/Users/xlings"
+    sed -i '' 's#XLINGS_HOME="/Users/xlings"#[ -z "${XLINGS_HOME:-}" ] \&\& XLINGS_HOME="$HOME"#g' "$INSTALL_SCRIPT" || true
+    # 统一替换任何硬编码的 /Users/xlings 文本为当前 $HOME（用于日志与路径）
+    sed -i '' 's#/Users/xlings#'"$HOME"'#g' "$INSTALL_SCRIPT" || true
 
-    # 显式导出环境变量，避免子脚本覆盖为错误路径
+    # 显式导出环境变量，避免子脚本使用旧值
     export XLINGS_HOME="$HOME"
     export XLINGS_HOME_DIR="$HOME"
 
     # 运行安装脚本
     echo -e "${BLUE}正在运行安装脚本...${RESET}"
+    echo -e "${BLUE}执行脚本: ${RESET}$INSTALL_SCRIPT"
     if ! source "$INSTALL_SCRIPT" disable_reopen; then
         error_exit "安装脚本执行失败"
     fi
