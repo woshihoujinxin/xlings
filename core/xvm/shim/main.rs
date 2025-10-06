@@ -4,9 +4,24 @@ use std::process::{Command, exit};
 
 fn default_xlings_bindir() -> PathBuf {
     match std::env::consts::OS {
-        "windows" => PathBuf::from(r"C:\Users\Public\xlings\.xlings_data\bin"),
-        "linux" => PathBuf::from("/home/xlings/.xlings_data/bin"),
-        "macos" => PathBuf::from("/Users/xlings/.xlings_data/bin"),
+        "windows" => {
+            let home = env::var("XLINGS_HOME")
+                .or_else(|_| env::var("USERPROFILE"))
+                .unwrap_or_else(|_| String::from(r"C:\Users\Public\xlings"));
+            PathBuf::from(format!("{}/.xlings_data/bin", home))
+        }
+        "macos" => {
+            let home = env::var("XLINGS_HOME")
+                .or_else(|_| env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/Users/xlings"));
+            PathBuf::from(format!("{}/.xlings_data/bin", home))
+        }
+        "linux" => {
+            let home = env::var("XLINGS_HOME")
+                .or_else(|_| env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/home/xlings"));
+            PathBuf::from(format!("{}/.xlings_data/bin", home))
+        }
         _ => panic!("Unsupported OS"),
     }
 }

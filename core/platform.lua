@@ -4,7 +4,41 @@ import("config.xconfig")
 
 local baseconfig = xconfig.load()
 
-local homedir = baseconfig["homedir"][os.host()]
+local function resolve_homedir(baseconfig)
+    -- 读取配置的 homedir（按当前主机系统）
+    local v = baseconfig and baseconfig["homedir"] and baseconfig["homedir"][os.host()] or nil
+    -- 环境变量优先
+    local xlings_home_env = os.getenv("XLINGS_HOME")
+    local home_env = os.getenv("HOME")
+
+    -- 若显式设置了 XLINGS_HOME，则优先使用
+    if xlings_home_env and #xlings_home_env > 0 then
+        return xlings_home_env
+    end
+
+    -- 配置中若包含 $HOME 或 ${HOME}，进行展开
+    if v and #v > 0 then
+        local expanded = v
+        if string.find(expanded, "$HOME", 1, true) and home_env and #home_env > 0 then
+            expanded = string.gsub(expanded, "%$HOME", home_env)
+        end
+        if string.find(expanded, "${HOME}", 1, true) and home_env and #home_env > 0 then
+            expanded = string.gsub(expanded, "%${HOME}", home_env)
+        end
+        if expanded and #expanded > 0 then
+            return expanded
+        end
+    end
+
+    -- 兜底使用系统 HOME
+    if home_env and #home_env > 0 then
+        return home_env
+    end
+    -- 最后返回原始配置（可能为 nil）
+    return v
+end
+
+local homedir = resolve_homedir(baseconfig)
 
 local xlings_install_dir = {
     linux = path.join(homedir, ".xlings"),

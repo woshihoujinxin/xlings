@@ -75,23 +75,51 @@ pub mod platform {
 */
     // TODO: to support workspace dir, .xlings/xvm-workspace
     pub fn xvm_homedir() -> PathBuf {
-        if cfg!(target_os = "windows") {
-            PathBuf::from(r"C:\Users\Public\xlings\.xlings_data")
-        } else if cfg!(target_os = "macos") {
-            PathBuf::from("/Users/xlings/.xlings_data")
-        } else {
-            PathBuf::from("/home/xlings/.xlings_data")
+        #[cfg(target_os = "windows")]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .unwrap_or_else(|_| String::from(r"C:\Users\Public\xlings"));
+            PathBuf::from(format!("{}/.xlings_data", home))
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/Users/xlings"));
+            PathBuf::from(format!("{}/.xlings_data", home))
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/home/xlings"));
+            PathBuf::from(format!("{}/.xlings_data", home))
         }
     }
 
     // fixed path for xvm data directory
     pub fn xvm_datadir() -> String {
-        if cfg!(target_os = "windows") {
-            "C:/Users/Public/xlings/.xlings_data/xvm".to_string()
-        } else if cfg!(target_os = "macos") {
-            "/Users/xlings/.xlings_data/xvm".to_string()
-        } else {
-            "/home/xlings/.xlings_data/xvm".to_string()
+        #[cfg(target_os = "windows")]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .unwrap_or_else(|_| String::from(r"C:\Users\Public\xlings"));
+            format!("{}/.xlings_data/xvm", home)
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/Users/xlings"));
+            format!("{}/.xlings_data/xvm", home)
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            let home = std::env::var("XLINGS_HOME")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_else(|_| String::from("/home/xlings"));
+            format!("{}/.xlings_data/xvm", home)
         }
     }
 }
