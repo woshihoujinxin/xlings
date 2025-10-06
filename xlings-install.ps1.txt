@@ -21,7 +21,7 @@ function Write-Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 function Error-Exit([string]$msg) {
   Write-Err "错误: $msg"
   Cleanup
-  exit 1
+  throw $msg
 }
 
 # 清理临时目录
@@ -111,7 +111,7 @@ function Download-And-Install([string]$url) {
     Remove-Item -LiteralPath $QI_INSTALL_DIR -Recurse -Force -ErrorAction SilentlyContinue
   }
   New-Item -ItemType Directory -Path $QI_INSTALL_DIR -Force | Out-Null
-  Set-Location $QI_INSTALL_DIR
+  Push-Location $QI_INSTALL_DIR
 
   # 下载（带回退）
   Write-Info '正在下载 xlings...'
@@ -149,7 +149,7 @@ function Download-And-Install([string]$url) {
   # 进入解压目录
   Write-Host ("进入目录: {0}" -f $XLINGS_DIR)
   if (-not (Test-Path -LiteralPath $XLINGS_DIR)) { Error-Exit "找不到解压后的目录 $XLINGS_DIR" }
-  Set-Location $XLINGS_DIR
+  Push-Location $XLINGS_DIR
 
   # 检查安装脚本（Windows）
   if (-not (Test-Path -LiteralPath $INSTALL_SCRIPT_WIN)) { Error-Exit "找不到安装脚本 $INSTALL_SCRIPT_WIN" }
