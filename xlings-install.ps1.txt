@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 # 全局变量
 $QI_RUN_DIR = (Get-Location).Path
 $QI_INSTALL_DIR = '.xlings_software_install'
+$SOFTWARE_URL0 = 'https://vip.123pan.cn/1825134841/32180721'
 $SOFTWARE_URL1 = 'https://github.com/woshihoujinxin/xlings/archive/refs/heads/dev.zip'
 $SOFTWARE_URL2 = 'https://gitee.com/houjinxin/xlings/repository/archive/dev.zip?format=zip'
 $ZIP_FILE = 'software.zip'
@@ -66,11 +67,36 @@ function Measure-Latency([string]$url) {
   } catch { return 999999 }
 }
 
-# 选择最快源（直接使用GitHub）
+# 源可用性检测：15s内响应且非网页（Content-Type != text/html）
+function Test-Source([string]$url) {
+  try {
+    $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 15 -UseBasicParsing
+    if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400) {
+      $ctype = $resp.Headers['Content-Type']
+      if ($ctype -and ($ctype -like '*text/html*')) { return $false }
+      return $true
+    }
+    return $false
+  } catch { return $false }
+}
+
+# 按优先级选择源：VIP -> GitHub -> Gitee（先检查可用性）
 function Select-FastestUrl {
-  Write-Info '选择下载源...'
-  Write-Ok '使用 GitHub 源（推荐）'
-  return $SOFTWARE_URL1
+  Write-Info '选择下载源（先检查可用性）...'
+
+  if (Test-Source $SOFTWARE_URL0) {
+    Write-Ok '使用 VIP 源'
+    return $SOFTWARE_URL0
+  } elseif (Test-Source $SOFTWARE_URL1) {
+    Write-Ok '使用 GitHub 源'
+    return $SOFTWARE_URL1
+  } elseif (Test-Source $SOFTWARE_URL2) {
+    Write-Ok '使用 Gitee 源'
+    return $SOFTWARE_URL2
+  } else {
+    Write-Warn '源检测均失败，回退到 GitHub'
+    return $SOFTWARE_URL1
+  }
 }
 
 # 检查与安装必要工具（git）
@@ -118,17 +144,31 @@ function Download-And-Install([string]$url) {
     $downloadOk = $true
   } catch {
     Write-Warn "首选源下载失败: $($_.Exception.Message)"
-    $fallback = if ($url -eq $SOFTWARE_URL2) { $SOFTWARE_URL1 } else { $SOFTWARE_URL2 }
-    Write-Host ("备用下载地址: {0}" -f $fallback)
-    try {
-      $headers = @{
-        'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    # 轮询候选源：VIP -> GitHub -> Gitee，跳过当前 URL；每个源在下载前做 15s 头部检查（非 text/html）
+    $candidates = @($SOFTWARE_URL0, $SOFTWARE_URL1, $SOFTWARE_URL2)
+    $switched = $false
+    foreach ($candidate in $candidates) {
+      if ($candidate -eq $url) { continue }
+      Write-Host ("备用下载地址: {0}" -f $candidate)
+      if (-not (Test-Source $candidate)) {
+        Write-Warn "备用源不可用或返回网页，继续切换..."
+        continue
       }
-      Invoke-WebRequest -Uri $fallback -OutFile $ZIP_FILE -Headers $headers -UseBasicParsing -TimeoutSec 120
-      $downloadOk = $true
-      $url = $fallback
-    } catch {
-      Error-Exit "下载失败，主源与备用源均无法连接: $($_.Exception.Message)"
+      try {
+        $headers = @{
+          'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        Invoke-WebRequest -Uri $candidate -OutFile $ZIP_FILE -Headers $headers -UseBasicParsing -TimeoutSec 120
+        $downloadOk = $true
+        $url = $candidate
+        $switched = $true
+        break
+      } catch {
+        Write-Warn "备用源下载失败: $($_.Exception.Message)"
+      }
+    }
+    if (-not $switched) {
+      Error-Exit "下载失败，所有源均不可用，请检查网络后重试"
     }
   }
 

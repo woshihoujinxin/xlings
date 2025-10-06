@@ -6,6 +6,7 @@ set -euo pipefail
 # 全局变量
 readonly QI_RUN_DIR="$(pwd)"
 readonly QI_INSTALL_DIR=".xlings_software_install"
+readonly SOFTWARE_URL0="https://vip.123pan.cn/1825134841/32180721"
 readonly SOFTWARE_URL1="https://github.com/woshihoujinxin/xlings/archive/refs/heads/dev.zip"
 readonly SOFTWARE_URL2="https://gitee.com/houjinxin/xlings/repository/archive/dev.zip"
 readonly ZIP_FILE="software.zip"
@@ -83,24 +84,26 @@ measure_latency() {
     fi
 }
 
-# 选择最快的下载源
+# 选择下载源（先检查响应与内容类型，15秒无响应或返回网页则换源）
 select_fastest_url() {
-    echo -e "${BLUE}测试网络连接...${RESET}" >&2
-    
-    local latency1 latency2
-    latency1=$(measure_latency "$SOFTWARE_URL1")
-    latency2=$(measure_latency "$SOFTWARE_URL2")
-    
-    if [ "$latency1" = "0" ]; then
-        echo -e "${GREEN}使用 GitHub 源${RESET}" >&2
-        echo "$SOFTWARE_URL1"
-    elif [ "$latency2" = "0" ]; then
-        echo -e "${GREEN}使用 Gitee 源${RESET}" >&2
-        echo "$SOFTWARE_URL2"
-    else
-        echo -e "${YELLOW}网络连接测试失败，使用默认源${RESET}" >&2
-        echo "$SOFTWARE_URL1"
-    fi
+    echo -e "${BLUE}测试下载源可用性...${RESET}" >&2
+
+    local urls=("$SOFTWARE_URL0" "$SOFTWARE_URL1" "$SOFTWARE_URL2")
+    for url in "${urls[@]}"; do
+        # 头部检查：HTTP 2xx/3xx 且 Content-Type 非 text/html
+        local headers
+        headers="$(curl -sI --connect-timeout 5 --max-time 15 "$url" || true)"
+        if echo "$headers" | grep -Eqi 'HTTP/.* (200|30[0-9])' && ! echo "$headers" | grep -Eqi 'Content-Type:\s*text/html' ; then
+            echo -e "${GREEN}使用源: ${RESET}$url" >&2
+            echo "$url"
+            return
+        else
+            echo -e "${YELLOW}源不可用或返回网页，切换: ${RESET}$url${YELLOW} -> 下一个源${RESET}" >&2
+        fi
+    done
+
+    echo -e "${YELLOW}源检测均失败，回退到 GitHub${RESET}" >&2
+    echo "$SOFTWARE_URL1"
 }
 
 # 安装工具函数
@@ -167,18 +170,29 @@ download_and_install() {
     echo -e "${BLUE}下载地址: ${RESET}$software_url"
     echo -e "${BLUE}保存为:   ${RESET}$ZIP_FILE"
     if ! curl -L --retry 2 --connect-timeout 5 --max-time 60 --progress-bar -o "$ZIP_FILE" "$software_url"; then
-        echo -e "${YELLOW}首选源下载失败，尝试备用源...${RESET}" >&2
-        # 选择备用源：若当前是 URL1，则回退到 URL2，反之亦然
-        FallbackURL="$SOFTWARE_URL2"
-        if [ "$software_url" = "$SOFTWARE_URL2" ]; then
-            FallbackURL="$SOFTWARE_URL1"
+        echo -e "${YELLOW}首选源下载失败，尝试轮换其他源...${RESET}" >&2
+        # 构造轮换列表：优先当前选择，其它按 vip→GitHub→Gitee 顺序依次尝试
+        local candidates=("$SOFTWARE_URL0" "$SOFTWARE_URL1" "$SOFTWARE_URL2")
+        local tried="$software_url"
+        for candidate in "${candidates[@]}"; do
+            [ "$candidate" = "$software_url" ] && continue
+            echo -e "${BLUE}备用下载地址: ${RESET}$candidate"
+            # 下载前进行头部检查（15s）
+            local headers
+            headers="$(curl -sI --connect-timeout 5 --max-time 15 "$candidate" || true)"
+            if ! echo "$headers" | grep -Eqi 'HTTP/.* (200|30[0-9])' || echo "$headers" | grep -Eqi 'Content-Type:\s*text/html' ; then
+                echo -e "${YELLOW}备用源不可用或返回网页，继续切换...${RESET}" >&2
+                continue
+            fi
+            if curl -L --retry 2 --connect-timeout 5 --max-time 60 --progress-bar -o "$ZIP_FILE" "$candidate"; then
+                software_url="$candidate"
+                break
+            fi
+        done
+        # 若仍未成功
+        if [ ! -s "$ZIP_FILE" ]; then
+            error_exit "下载失败，所有源均不可用，请检查网络后重试"
         fi
-        echo -e "${BLUE}备用下载地址: ${RESET}$FallbackURL"
-        if ! curl -L --retry 2 --connect-timeout 5 --max-time 60 --progress-bar -o "$ZIP_FILE" "$FallbackURL"; then
-            error_exit "下载失败，主源与备用源均无法连接，请检查网络后重试"
-        fi
-        # 将生效的下载源更新为备用源，便于后续日志与处理一致
-        software_url="$FallbackURL"
     fi
 
     # 验证下载的文件
