@@ -50,7 +50,13 @@ function install()
         -- create bin dir
         local bindir = platform.get_config_info().bindir
         cprint("[xlings]: create bindir %s", bindir)
-        os.cp(path.join(install_dir, "bin"), bindir, {force = true})
+        -- copy contents of bin into bindir, avoid nested bin/
+        os.cp(path.join(install_dir, "bin", "*"), bindir, {force = true})
+        -- safe guard: if a nested bin exists, flatten it
+        if os.isdir(path.join(bindir, "bin")) then
+            os.cp(path.join(bindir, "bin", "*"), bindir, {force = true})
+            os.tryrm(path.join(bindir, "bin"))
+        end
 
         -- copy profile to rcachedir
         cprint("[xlings]: copy profile to rcachedir...")

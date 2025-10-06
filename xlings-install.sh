@@ -162,12 +162,23 @@ download_and_install() {
     mkdir -p "$QI_INSTALL_DIR"
     cd "$QI_INSTALL_DIR" || error_exit "无法进入临时目录"
 
-    # 下载软件包
+    # 下载软件包（带源回退）
     echo -e "${BLUE}正在下载 xlings...${RESET}"
     echo -e "${BLUE}下载地址: ${RESET}$software_url"
     echo -e "${BLUE}保存为:   ${RESET}$ZIP_FILE"
-    if ! curl -L --progress-bar -o "$ZIP_FILE" "$software_url"; then
-        error_exit "下载失败，请检查网络连接后重试"
+    if ! curl -L --retry 2 --connect-timeout 5 --max-time 60 --progress-bar -o "$ZIP_FILE" "$software_url"; then
+        echo -e "${YELLOW}首选源下载失败，尝试备用源...${RESET}" >&2
+        # 选择备用源：若当前是 URL1，则回退到 URL2，反之亦然
+        FallbackURL="$SOFTWARE_URL2"
+        if [ "$software_url" = "$SOFTWARE_URL2" ]; then
+            FallbackURL="$SOFTWARE_URL1"
+        fi
+        echo -e "${BLUE}备用下载地址: ${RESET}$FallbackURL"
+        if ! curl -L --retry 2 --connect-timeout 5 --max-time 60 --progress-bar -o "$ZIP_FILE" "$FallbackURL"; then
+            error_exit "下载失败，主源与备用源均无法连接，请检查网络后重试"
+        fi
+        # 将生效的下载源更新为备用源，便于后续日志与处理一致
+        software_url="$FallbackURL"
     fi
 
     # 验证下载的文件
