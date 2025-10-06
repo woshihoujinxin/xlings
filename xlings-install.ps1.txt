@@ -1,8 +1,8 @@
- #requires -version 5.1
+#requires -version 5.1
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# 全¨?局?变À?量¢?
+# 全局变量
 $QI_RUN_DIR = (Get-Location).Path
 $QI_INSTALL_DIR = '.xlings_software_install'
 $SOFTWARE_URL1 = 'https://github.com/woshihoujinxin/xlings/archive/refs/heads/dev.zip'
@@ -11,30 +11,30 @@ $ZIP_FILE = 'software.zip'
 $XLINGS_DIR = 'xlings-dev'
 $INSTALL_SCRIPT_WIN = 'tools\install.win.bat'
 
-# 简¨°易°¡Á彩¨º色¦?输º?出?
+# 简易彩色输出
 function Write-Info([string]$msg)  { Write-Host $msg -ForegroundColor Cyan }
 function Write-Ok([string]$msg)    { Write-Host $msg -ForegroundColor Green }
 function Write-Warn([string]$msg)  { Write-Host $msg -ForegroundColor Yellow }
 function Write-Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 
-# 错ä¨ª误¨®退ª?出?
+# 错误退出
 function Error-Exit([string]$msg) {
-  Write-Err "错ä¨ª误¨®: $msg"
+  Write-Err "错误: $msg"
   Cleanup
   throw $msg
 }
 
-# 清?理¤¨ª临¢¨´时º¡À目?录?
+# 清理临时目录
 function Cleanup {
   try {
     if (Test-Path -LiteralPath (Join-Path $QI_RUN_DIR $QI_INSTALL_DIR)) {
-      Write-Warn '清?理¤¨ª临¢¨´时º¡À文?件t...'
+      Write-Warn '清理临时文件...'
       Remove-Item -LiteralPath (Join-Path $QI_RUN_DIR $QI_INSTALL_DIR) -Recurse -Force -ErrorAction SilentlyContinue
     }
   } catch { }
 }
 
-# 欢?迎®-信?息¡é
+# 欢迎信息
 function Show-Banner {
 @'
  __   __  _      _                     
@@ -53,12 +53,12 @@ forum: https://forum.d2learn.org
 '@ | Write-Host
 }
 
-# 测a试º?命¨¹令¢?是º?否¤?存ä?在¨²
+# 测试命令是否存在
 function Test-Command([string]$name) {
   try { $null = Get-Command $name -ErrorAction Stop; return $true } catch { return $false }
 }
 
-# 测a量¢?网ª?络?连¢?通ª¡§性?（ê¡§简¨°化¡¥：êo能¨¹连¢?即¡ä认¨?为a可¨¦用®?）ê?
+# 测量网络连通性（简化：能连即认为可用）
 function Measure-Latency([string]$url) {
   try {
     $resp = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 10 -UseBasicParsing
@@ -66,20 +66,20 @@ function Measure-Latency([string]$url) {
   } catch { return 999999 }
 }
 
-# 选?择?最Á?快¨¬源¡ä（ê¡§直¡À接¨®使º1用®?GitHub）ê?
+# 选择最快源（直接使用GitHub）
 function Select-FastestUrl {
-  Write-Info '选?择?下?载?源¡ä...'
-  Write-Ok '使º1用®? GitHub 源¡ä（ê¡§推ª?荐?）ê?'
+  Write-Info '选择下载源...'
+  Write-Ok '使用 GitHub 源（推荐）'
   return $SOFTWARE_URL1
 }
 
-# 检¨¬查¨¦与®?安ã2装Á¡ã必À?要°a工¡è具?（ê¡§git）ê?
+# 检查与安装必要工具（git）
 function Ensure-Tool([string]$tool) {
   if (Test-Command $tool) {
-    Write-Ok "$tool 已°?安ã2装Á¡ã"
+    Write-Ok "$tool 已安装"
     return
   }
-  Write-Warn "$tool 未¡ä安ã2装Á¡ã，ê?尝¡é试º?安ã2装Á¡ã..."
+  Write-Warn "$tool 未安装，尝试安装..."
   if (Test-Command 'winget') {
     try {
       if ($tool -eq 'git') {
@@ -87,39 +87,39 @@ function Ensure-Tool([string]$tool) {
       }
     } catch { }
   } else {
-    Write-Warn 'winget 不?可¨¦用®?，ê?请?手º?动¡¥安ã2装Á¡ã所¨´需¨¨工¡è具?'
+    Write-Warn 'winget 不可用，请手动安装所需工具'
   }
-  if (-not (Test-Command $tool)) { Error-Exit "安ã2装Á¡ã $tool 失º¡ì败ã¨¹，ê?请?手º?动¡¥安ã2装Á¡ã后¨®重?试º?" }
-  Write-Ok "$tool 安ã2装Á¡ã成¨¦功|"
+  if (-not (Test-Command $tool)) { Error-Exit "安装 $tool 失败，请手动安装后重试" }
+  Write-Ok "$tool 安装成功"
 }
 
-# 下?载?与®?安ã2装Á¡ã
+# 下载与安装
 function Download-And-Install([string]$url) {
-  # 清?理¤¨ª旧¨¦安ã2装Á¡ã目?录?
+  # 清理旧安装目录
   if (Test-Path -LiteralPath $QI_INSTALL_DIR) {
-    Write-Warn '清?理¤¨ª旧¨¦的Ì?安ã2装Á¡ã文?件t...'
+    Write-Warn '清理旧的安装文件...'
     Remove-Item -LiteralPath $QI_INSTALL_DIR -Recurse -Force -ErrorAction SilentlyContinue
   }
   New-Item -ItemType Directory -Path $QI_INSTALL_DIR -Force | Out-Null
   Push-Location $QI_INSTALL_DIR
 
-  # 下?载?（ê¡§带ä?回?退ª?）ê?
-  Write-Info '正y在¨²下?载? xlings...'
-  Write-Host ("下?载?地Ì?址¡¤: {0}" -f $url)
-  Write-Host ("保À¡ê存ä?为a:   {0}" -f $ZIP_FILE)
+  # 下载（带回退）
+  Write-Info '正在下载 xlings...'
+  Write-Host ("下载地址: {0}" -f $url)
+  Write-Host ("保存为:   {0}" -f $ZIP_FILE)
 
   $downloadOk = $false
   try {
-    # 添¬¨ª加¨®UserAgent避À¨¹免a被À?拦¤1截?
+    # 添加UserAgent避免被拦截
     $headers = @{
       'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     Invoke-WebRequest -Uri $url -OutFile $ZIP_FILE -Headers $headers -UseBasicParsing -TimeoutSec 120
     $downloadOk = $true
   } catch {
-    Write-Warn "首º¡Á选?源¡ä下?载?失º¡ì败ã¨¹: $($_.Exception.Message)"
+    Write-Warn "首选源下载失败: $($_.Exception.Message)"
     $fallback = if ($url -eq $SOFTWARE_URL2) { $SOFTWARE_URL1 } else { $SOFTWARE_URL2 }
-    Write-Host ("备À?用®?下?载?地Ì?址¡¤: {0}" -f $fallback)
+    Write-Host ("备用下载地址: {0}" -f $fallback)
     try {
       $headers = @{
         'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -128,113 +128,113 @@ function Download-And-Install([string]$url) {
       $downloadOk = $true
       $url = $fallback
     } catch {
-      Error-Exit "下?载?失º¡ì败ã¨¹，ê?主¡Â源¡ä与®?备À?用®?源¡ä均¨´无T法¤¡§连¢?接¨®: $($_.Exception.Message)"
+      Error-Exit "下载失败，主源与备用源均无法连接: $($_.Exception.Message)"
     }
   }
 
-  if (-not (Test-Path -LiteralPath $ZIP_FILE)) { Error-Exit '下?载?的Ì?文?件t不?存ä?在¨²' }
-  if ((Get-Item $ZIP_FILE).Length -le 0) { Error-Exit '下?载?的Ì?文?件t为a空?' }
+  if (-not (Test-Path -LiteralPath $ZIP_FILE)) { Error-Exit '下载的文件不存在' }
+  if ((Get-Item $ZIP_FILE).Length -le 0) { Error-Exit '下载的文件为空' }
 
-  # 验¨¦证¡è是º?否¤?为a有®D效¡ì的Ì?ZIP文?件t
+  # 验证是否为有效的ZIP文件
   $fileHeader = Get-Content $ZIP_FILE -Encoding Byte -TotalCount 4
   if ($fileHeader[0] -ne 0x50 -or $fileHeader[1] -ne 0x4B) {
-    Write-Err "下?载?的Ì?文?件t不?是º?有®D效¡ì的Ì?ZIP格?式º?，ê?文?件t大ä¨®小?: $((Get-Item $ZIP_FILE).Length) 字Á?节¨²"
-    Write-Host "文?件t开a头ª¡¤内¨²容¨Y:"
+    Write-Err "下载的文件不是有效的ZIP格式，文件大小: $((Get-Item $ZIP_FILE).Length) 字节"
+    Write-Host "文件开头内容:"
     Get-Content $ZIP_FILE -TotalCount 5
-    Error-Exit '下?载?的Ì?文?件t格?式º?无T效¡ì，ê?可¨¦能¨¹是º?网ª?络?返¤¦Ì回?的Ì?错ä¨ª误¨®页°3面?'
+    Error-Exit '下载的文件格式无效，可能是网络返回的错误页面'
   }
 
-  # 解a压1
-  Write-Info '正y在¨²解a压1文?件t...'
-  Write-Host ("解a压1源¡ä:   {0}" -f $ZIP_FILE)
-  Write-Host ("目?标À¨º目?录?: {0}" -f $QI_INSTALL_DIR)
+  # 解压
+  Write-Info '正在解压文件...'
+  Write-Host ("解压源:   {0}" -f $ZIP_FILE)
+  Write-Host ("目标目录: {0}" -f $QI_INSTALL_DIR)
   try {
     Expand-Archive -LiteralPath $ZIP_FILE -DestinationPath . -Force
-  } catch { Error-Exit '解a压1失º¡ì败ã¨¹，ê?文?件t可¨¦能¨¹已°?损e坏¦Ì' }
+  } catch { Error-Exit '解压失败，文件可能已损坏' }
 
-  # 进?入¨?解a压1目?录?
-  Write-Host ("进?入¨?目?录?: {0}" -f $XLINGS_DIR)
-  if (-not (Test-Path -LiteralPath $XLINGS_DIR)) { Error-Exit "找¨°不?到Ì?解a压1后¨®的Ì?目?录? $XLINGS_DIR" }
+  # 进入解压目录
+  Write-Host ("进入目录: {0}" -f $XLINGS_DIR)
+  if (-not (Test-Path -LiteralPath $XLINGS_DIR)) { Error-Exit "找不到解压后的目录 $XLINGS_DIR" }
   Push-Location $XLINGS_DIR
 
-  # 检¨¬查¨¦安ã2装Á¡ã脚?本À?（ê¡§Windows）ê?
-  if (-not (Test-Path -LiteralPath $INSTALL_SCRIPT_WIN)) { Error-Exit "找¨°不?到Ì?安ã2装Á¡ã脚?本À? $INSTALL_SCRIPT_WIN" }
+  # 检查安装脚本（Windows）
+  if (-not (Test-Path -LiteralPath $INSTALL_SCRIPT_WIN)) { Error-Exit "找不到安装脚本 $INSTALL_SCRIPT_WIN" }
 
-  # 显?式º?导Ì?出?环¡¤境3变À?量¢?，ê?供?子Á¨®脚?本À?使º1用®?
+  # 显式导出环境变量，供子脚本使用
   try {
     if (-not $env:XLINGS_HOME_DIR) {
       $env:XLINGS_HOME_DIR = $env:USERPROFILE
     }
   } catch {
-    Write-Warn "无T法¤¡§设¦¨¨置?环¡¤境3变À?量¢?: $_"
+    Write-Warn "无法设置环境变量: $_"
   }
 
-  # 运?行D安ã2装Á¡ã脚?本À?（ê¡§cmd 执¡ä行D .bat）ê?
-  Write-Info '正y在¨²运?行D安ã2装Á¡ã脚?本À?...'
-  Write-Host ("执¡ä行D脚?本À?: {0}" -f $INSTALL_SCRIPT_WIN)
+  # 运行安装脚本（cmd 执行 .bat）
+  Write-Info '正在运行安装脚本...'
+  Write-Host ("执行脚本: {0}" -f $INSTALL_SCRIPT_WIN)
   $batPath = (Resolve-Path $INSTALL_SCRIPT_WIN).Path
   $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`" disable_reopen" -NoNewWindow -Wait -PassThru
-  if ($proc.ExitCode -ne 0) { Error-Exit '安ã2装Á¡ã脚?本À?执¡ä行D失º¡ì败ã¨¹' }
+  if ($proc.ExitCode -ne 0) { Error-Exit '安装脚本执行失败' }
 
-  # 安ã2装Á¡ã后¨®校¡ê验¨¦
+  # 安装后校验
   if (-not (Test-Command 'xlings')) {
-    Write-Warn 'xlings 未¡ä在¨² PATH 中D，ê?尝¡é试º?追Á¡¤加¨®路¡¤径?并¡é重?试º?...'
+    Write-Warn 'xlings 未在 PATH 中，尝试追加路径并重试...'
     $env:PATH = "$($env:USERPROFILE)\.xlings_data\bin;$env:PATH"
     if (-not (Test-Command 'xlings')) {
-      Write-Err 'xlings 仍¨?不?可¨¦用®?。¡ê请?重?开a终?端?或¨°手º?动¡¥将?以°?下?路¡¤径?加¨®入¨? PATH：êo'
+      Write-Err 'xlings 仍不可用。请重开终端或手动将以下路径加入 PATH：'
       Write-Host "$($env:USERPROFILE)\.xlings_data\bin"
     }
   }
 }
 
-# 配?置?环¡¤境3变À?量¢?（ê¡§持?久?）ê?
+# 配置环境变量（持久）
 function Setup-Environment {
-  Write-Info '配?置?环¡¤境3变À?量¢?...'
-  $home = $env:USERPROFILE
+  Write-Info '配置环境变量...'
+  $userHome = $env:USERPROFILE
   try {
-    if ([string]::IsNullOrWhiteSpace($env:XLINGS_HOME_DIR)) { $env:XLINGS_HOME_DIR = $home }
+    if ([string]::IsNullOrWhiteSpace($env:XLINGS_HOME_DIR)) { $env:XLINGS_HOME_DIR = $userHome }
   } catch {
-    Write-Warn "环¡¤境3变À?量¢?设¦¨¨置?警¡¥告?: $_"
+    Write-Warn "环境变量设置警告: $_"
   }
 
-  # 更¨¹新?用®?户¡ì PATH（ê¡§避À¨¹免a重?复¡ä）ê?
-  $bin1 = Join-Path $home '.xlings\bin'
-  $bin2 = Join-Path $home '.xlings_data\bin'
+  # 更新用户 PATH（避免重复）
+  $bin1 = Join-Path $userHome '.xlings\bin'
+  $bin2 = Join-Path $userHome '.xlings_data\bin'
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
   if (-not ($userPath -like "*$bin1*")) { $userPath = "$bin1;$userPath" }
   if (-not ($userPath -like "*$bin2*")) { $userPath = "$bin2;$userPath" }
   [Environment]::SetEnvironmentVariable('Path', $userPath, 'User')
-  Write-Ok '环¡¤境3变À?量¢?已°?配?置?'
+  Write-Ok '环境变量已配置'
 
-  # 当Ì¡À前¡ã会¨¢话¡ã立¢¡é即¡ä生¦¨²效¡ì
+  # 当前会话立即生效
   $env:PATH = "$bin1;$bin2;$($env:PATH)"
 }
 
-# 主¡Â流¢¡Â程¨¬
+# 主流程
 function Main {
   Show-Banner
-  Write-Info '开a始º?安ã2装Á¡ã xlings...'
+  Write-Info '开始安装 xlings...'
 
-  # 依°¨¤赖¤¦Ì（ê¡§git）ê?
+  # 依赖（git）
   Ensure-Tool 'git'
 
-  # 选?择?源¡ä
+  # 选择源
   $softwareUrl = Select-FastestUrl
 
-  # 下?载?与®?安ã2装Á¡ã
+  # 下载与安装
   Download-And-Install -url $softwareUrl
 
-  # 配?置?环¡¤境3
+  # 配置环境
   Setup-Environment
 
-  # 清?理¤¨ª
+  # 清理
   Cleanup
 
-  Write-Ok '安ã2装Á¡ã完ª¨º成¨¦！ê?'
-  Write-Warn '请?重?新?启?动¡¥终?端?使º1环¡¤境3变À?量¢?生¦¨²效¡ì'
+  Write-Ok '安装完成！'
+  Write-Warn '请重新启动终端使环境变量生效'
   Write-Host ''
-  Write-Info "运?行D 'xlings help' 获?取¨?更¨¹多¨¤信?息¡é"
+  Write-Info "运行 'xlings help' 获取更多信息"
 }
 
-# 运?行D
-Main 
+# 运行
+Main
