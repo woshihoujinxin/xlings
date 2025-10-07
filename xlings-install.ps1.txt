@@ -22,15 +22,20 @@ function Write-Err([string]$msg)   { Write-Host $msg -ForegroundColor Red }
 function Error-Exit([string]$msg) {
   Write-Err "错误: $msg"
   Cleanup
-  throw $msg
+  exit 1
 }
 
 # 清理临时目录
 function Cleanup {
   try {
-    if (Test-Path -LiteralPath (Join-Path $QI_RUN_DIR $QI_INSTALL_DIR)) {
+    # 返回到初始目录
+    Pop-Location -ErrorAction SilentlyContinue
+    Pop-Location -ErrorAction SilentlyContinue
+
+    $installPath = Join-Path $QI_RUN_DIR $QI_INSTALL_DIR
+    if (Test-Path -LiteralPath $installPath) {
       Write-Warn '清理临时文件...'
-      Remove-Item -LiteralPath (Join-Path $QI_RUN_DIR $QI_INSTALL_DIR) -Recurse -Force -ErrorAction SilentlyContinue
+      Remove-Item -LiteralPath $installPath -Recurse -Force -ErrorAction SilentlyContinue
     }
   } catch { }
 }
@@ -135,39 +140,44 @@ function Download-And-Install([string]$url) {
   Write-Host ("保存为:   {0}" -f $ZIP_FILE)
 
   $downloadOk = $false
+  $headers = @{
+    'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  }
+
+  # 尝试主URL
   try {
-    # 添加UserAgent避免被拦截
-    $headers = @{
-      'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
     Invoke-WebRequest -Uri $url -OutFile $ZIP_FILE -Headers $headers -UseBasicParsing -TimeoutSec 120
     $downloadOk = $true
   } catch {
     Write-Warn "首选源下载失败: $($_.Exception.Message)"
-    # 轮询候选源：VIP -> GitHub -> Gitee，跳过当前 URL；每个源在下载前做 15s 头部检查（非 text/html）
+  }
+
+  # 如果主URL失败，尝试备用源
+  if (-not $downloadOk) {
     $candidates = @($SOFTWARE_URL0, $SOFTWARE_URL1, $SOFTWARE_URL2)
-    $switched = $false
     foreach ($candidate in $candidates) {
       if ($candidate -eq $url) { continue }
+
       Write-Host ("备用下载地址: {0}" -f $candidate)
+
+      # 先测试源可用性
       if (-not (Test-Source $candidate)) {
         Write-Warn "备用源不可用或返回网页，继续切换..."
         continue
       }
+
+      # 尝试下载
       try {
-        $headers = @{
-          'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
         Invoke-WebRequest -Uri $candidate -OutFile $ZIP_FILE -Headers $headers -UseBasicParsing -TimeoutSec 120
         $downloadOk = $true
-        $url = $candidate
-        $switched = $true
+        Write-Ok "使用备用源下载成功"
         break
       } catch {
         Write-Warn "备用源下载失败: $($_.Exception.Message)"
       }
     }
-    if (-not $switched) {
+
+    if (-not $downloadOk) {
       Error-Exit "下载失败，所有源均不可用，请检查网络后重试"
     }
   }
@@ -176,7 +186,11 @@ function Download-And-Install([string]$url) {
   if ((Get-Item $ZIP_FILE).Length -le 0) { Error-Exit '下载的文件为空' }
 
   # 验证是否为有效的ZIP文件
-  $fileHeader = Get-Content $ZIP_FILE -Encoding Byte -TotalCount 4
+  if ($PSVersionTable.PSVersion.Major -ge 6) {
+    $fileHeader = Get-Content $ZIP_FILE -AsByteStream -TotalCount 4
+  } else {
+    $fileHeader = Get-Content $ZIP_FILE -Encoding Byte -TotalCount 4
+  }
   if ($fileHeader[0] -ne 0x50 -or $fileHeader[1] -ne 0x4B) {
     Write-Err "下载的文件不是有效的ZIP格式，文件大小: $((Get-Item $ZIP_FILE).Length) 字节"
     Write-Host "文件开头内容:"
@@ -201,12 +215,8 @@ function Download-And-Install([string]$url) {
   if (-not (Test-Path -LiteralPath $INSTALL_SCRIPT_WIN)) { Error-Exit "找不到安装脚本 $INSTALL_SCRIPT_WIN" }
 
   # 显式导出环境变量，供子脚本使用
-  try {
-    if (-not $env:XLINGS_HOME_DIR) {
-      $env:XLINGS_HOME_DIR = $env:USERPROFILE
-    }
-  } catch {
-    Write-Warn "无法设置环境变量: $_"
+  if ([string]::IsNullOrWhiteSpace($env:XLINGS_HOME_DIR)) {
+    $env:XLINGS_HOME_DIR = $env:USERPROFILE
   }
 
   # 运行安装脚本（cmd 执行 .bat）
@@ -231,20 +241,44 @@ function Download-And-Install([string]$url) {
 function Setup-Environment {
   Write-Info '配置环境变量...'
   $userHome = $env:USERPROFILE
-  try {
-    if ([string]::IsNullOrWhiteSpace($env:XLINGS_HOME_DIR)) { $env:XLINGS_HOME_DIR = $userHome }
-  } catch {
-    Write-Warn "环境变量设置警告: $_"
+
+  # 设置 XLINGS_HOME_DIR
+  if ([string]::IsNullOrWhiteSpace($env:XLINGS_HOME_DIR)) {
+    $env:XLINGS_HOME_DIR = $userHome
+    try {
+      [Environment]::SetEnvironmentVariable('XLINGS_HOME_DIR', $userHome, 'User')
+    } catch {
+      Write-Warn "无法持久化 XLINGS_HOME_DIR 环境变量"
+    }
   }
 
   # 更新用户 PATH（避免重复）
   $bin1 = Join-Path $userHome '.xlings\bin'
   $bin2 = Join-Path $userHome '.xlings_data\bin'
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-  if (-not ($userPath -like "*$bin1*")) { $userPath = "$bin1;$userPath" }
-  if (-not ($userPath -like "*$bin2*")) { $userPath = "$bin2;$userPath" }
-  [Environment]::SetEnvironmentVariable('Path', $userPath, 'User')
-  Write-Ok '环境变量已配置'
+
+  if (-not $userPath) { $userPath = '' }
+
+  $needUpdate = $false
+  if (-not ($userPath -like "*$bin1*")) {
+    $userPath = "$bin1;$userPath"
+    $needUpdate = $true
+  }
+  if (-not ($userPath -like "*$bin2*")) {
+    $userPath = "$bin2;$userPath"
+    $needUpdate = $true
+  }
+
+  if ($needUpdate) {
+    try {
+      [Environment]::SetEnvironmentVariable('Path', $userPath, 'User')
+      Write-Ok '环境变量已配置'
+    } catch {
+      Write-Warn "无法持久化 PATH 环境变量: $_"
+    }
+  } else {
+    Write-Ok 'PATH 环境变量已是最新'
+  }
 
   # 当前会话立即生效
   $env:PATH = "$bin1;$bin2;$($env:PATH)"
